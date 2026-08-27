@@ -77,6 +77,7 @@ class MainActivity : ComponentActivity() {
                 val stage by vm.stage.collectAsStateWithLifecycle()
                 val stickers by vm.stickers.collectAsStateWithLifecycle()
                 val undoDepth by vm.undoDepth.collectAsStateWithLifecycle()
+                val redoDepth by vm.redoDepth.collectAsStateWithLifecycle()
                 val toast by vm.toast.collectAsStateWithLifecycle()
                 val context = LocalContext.current
 
@@ -144,6 +145,7 @@ class MainActivity : ComponentActivity() {
                             is Stage.Cut -> CutScreen(
                                 refine = s.refine,
                                 undoDepth = undoDepth,
+                                redoDepth = redoDepth,
                                 onWand = vm::wand,
                                 onStrokeStart = vm::beginStroke,
                                 onPaint = vm::paint,
@@ -151,7 +153,12 @@ class MainActivity : ComponentActivity() {
                                 onMode = vm::setMode,
                                 onTolerance = vm::setTolerance,
                                 onBrush = vm::setBrush,
+                                onZoom = vm::zoom,
+                                onResetZoom = vm::resetZoom,
+                                onTogglePreview = vm::togglePreview,
+                                onTidy = vm::tidy,
                                 onUndo = vm::undo,
+                                onRedo = vm::redo,
                                 onDiscard = vm::discard,
                                 onSave = { vm.save() },
                             )
@@ -168,6 +175,8 @@ class MainActivity : ComponentActivity() {
                                         sticker = sticker,
                                         store = vm.stickers(),
                                         onRename = { vm.rename(sticker.id, it) },
+                                        onEdit = { vm.edit(sticker.id) },
+                                        editable = vm.stickers().editable(sticker.id),
                                         onDelete = { vm.delete(sticker.id) },
                                         onBack = { vm.go(Stage.Shelf) },
                                         onSaid = vm::say,

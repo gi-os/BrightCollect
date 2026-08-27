@@ -54,6 +54,9 @@ fun StickerScreen(
     sticker: Sticker,
     store: StickerStore,
     onRename: (String) -> Unit,
+    onEdit: () -> Unit,
+    /** False for a sticker made before v1.4, whose source was never kept. */
+    editable: Boolean,
     onDelete: () -> Unit,
     onBack: () -> Unit,
     onSaid: (String) -> Unit,
@@ -166,6 +169,18 @@ fun StickerScreen(
                     val next = typed.ifBlank { sticker.name }
                     if (next != sticker.name || sticker.suggested) onRename(next)
                     onBack()
+                },
+            )
+            LightButton(
+                label = "REDO",
+                modifier = Modifier.weight(1f),
+                // A sticker cut before v1.4 has no source kept beside it, so there is nothing to
+                // reopen. Greyed rather than hidden: the button moving about between stickers
+                // would be harder to understand than one that is sometimes unavailable.
+                enabled = editable,
+                onClick = {
+                    if (name.text != sticker.name) onRename(name.text)
+                    onEdit()
                 },
             )
             LightButton(

@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gios.brightcollect.cut.Cutout
+import com.gios.brightcollect.cut.Blobs
 import com.gios.brightcollect.cut.Mask
 import com.gios.brightcollect.cut.Namer
 import com.gios.brightcollect.cut.Segmenter
@@ -50,6 +51,20 @@ data class Refine(
     /** True while the model is still deciding — the first mask arrives after the photo does. */
     val thinking: Boolean = false,
     val hint: String? = null,
+    /**
+     * The sticker being re-cut, or null for a fresh photograph.
+     *
+     * The one thing that makes reopening different from capturing: a re-cut keeps its id, its
+     * name and the date it was caught, so it stays the same object in the collection rather than
+     * becoming a second one with the same picture.
+     */
+    val editing: String? = null,
+    /** 1 is fit-to-screen. See [Viewport]. */
+    val scale: Float = 1f,
+    val panX: Float = 0f,
+    val panY: Float = 0f,
+    /** Showing the real cutout on a checkerboard rather than the ghosted photograph. */
+    val preview: Boolean = false,
 ) {
     // Generated equals on a data class with an array member compares by identity and warns.
     // Identity is the correct comparison here — the array is swapped wholesale or not at all —
@@ -90,6 +105,9 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
     private val _undoDepth = MutableStateFlow(0)
     val undoDepth: StateFlow<Int> = _undoDepth.asStateFlow()
 
+    private val _redoDepth = MutableStateFlow(0)
+    val redoDepth: StateFlow<Int> = _redoDepth.asStateFlow()
+
     /**
      * Undo, as whole mask snapshots.
      *
@@ -98,6 +116,15 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
      * flood fills to rebuild a state and the whole point of undo is that it is instant.
      */
     private val undo = ArrayDeque<ByteArray>()
+
+    /**
+     * The other half of undo.
+     *
+     * Cleared by any new edit, which is the convention everywhere and the only one that is not
+     * confusing: a redo stack that survives a fresh stroke offers to reapply a change to a mask
+     * that no longer has the change it was made against.
+     */
+    private val redo = ArrayDeque<ByteArray>()
 
     init {
         refresh()
@@ -130,7 +157,9 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
         val px = IntArray(work.width * work.height)
         work.getPixels(px, 0, work.width, 0, 0, work.width, work.height)
         undo.clear()
+        redo.clear()
         _undoDepth.value = 0
+        _redoDepth.value = 0
         val blank = Mask(work.width, work.height)
         _stage.value = Stage.Cut(
             Refine(source = work, pixels = px, mask = blank, capturedAt = capturedAt, thinking = true),
@@ -141,8 +170,14 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
                     val small = segmenter.run(work)
                     // Harden before the upscale, feather after it. The other order feathers a
                     // 320-pixel grid and then magnifies the blur tenfold into a visible band.
-                    Mask.scale(small.harden(), work.width, work.height)
-                        .feather(featherFor(work))
+                    val full = Mask.scale(small.harden(), work.width, work.height)
+                    // **Before the feather, not after.** Feathering turns every speck into a soft
+                    // grey smudge whose faint tail may still touch the object, which is exactly
+                    // the case four-connectivity would then call connected. Dropping the strays
+                    // while the mask is still hard is the only place the question has a clean
+                    // answer. See Blobs.
+                    Blobs.keepLargest(full)
+                    full.feather(featherFor(work))
                 }
             }
             val current = _stage.value as? Stage.Cut ?: return@launch
@@ -227,17 +262,62 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
     fun undo() {
         val stage = _stage.value as? Stage.Cut ?: return
         val previous = undo.removeLastOrNull() ?: return
-        _undoDepth.value = undo.size
         val r = stage.refine
-        _stage.value = Stage.Cut(
-            r.copy(mask = Mask(r.mask.width, r.mask.height, previous)),
-        )
+        redo.addLast(r.mask.a.copyOf())
+        _undoDepth.value = undo.size
+        _redoDepth.value = redo.size
+        _stage.value = Stage.Cut(r.copy(mask = Mask(r.mask.width, r.mask.height, previous)))
     }
 
+    fun redo() {
+        val stage = _stage.value as? Stage.Cut ?: return
+        val next = redo.removeLastOrNull() ?: return
+        val r = stage.refine
+        undo.addLast(r.mask.a.copyOf())
+        _undoDepth.value = undo.size
+        _redoDepth.value = redo.size
+        _stage.value = Stage.Cut(r.copy(mask = Mask(r.mask.width, r.mask.height, next)))
+    }
+
+    /**
+     * Throws away everything not joined to the main shape.
+     *
+     * Offered as an action as well as run automatically after the model, because after you have
+     * brushed and filled for a while the mask picks up strays again — and because a brushed-on
+     * region that *is* separate on purpose must survive, which it cannot if this ran after every
+     * edit. See [Blobs].
+     */
+    fun tidy() {
+        val stage = _stage.value as? Stage.Cut ?: return
+        val r = stage.refine
+        val next = r.mask.copy()
+        val dropped = Blobs.keepLargest(next)
+        if (dropped == 0) {
+            say("Nothing loose to remove")
+            return
+        }
+        pushUndo(r.mask)
+        _stage.value = Stage.Cut(r.copy(mask = next))
+        say("Removed what wasn't attached")
+    }
+
+    fun zoom(scale: Float, panX: Float, panY: Float) = updateRefine {
+        it.copy(scale = scale, panX = panX, panY = panY)
+    }
+
+    fun resetZoom() = updateRefine { it.copy(scale = 1f, panX = 0f, panY = 0f) }
+
+    fun togglePreview() = updateRefine { it.copy(preview = !it.preview) }
+
     fun discard() {
+        val editing = (_stage.value as? Stage.Cut)?.refine?.editing
         undo.clear()
+        redo.clear()
         _undoDepth.value = 0
-        _stage.value = Stage.Shelf
+        _redoDepth.value = 0
+        // Backing out of a re-cut returns to the sticker you opened, not to the shelf. Landing
+        // on the shelf reads as though the sticker went somewhere.
+        _stage.value = if (editing != null) Stage.Detail(editing) else Stage.Shelf
     }
 
     /**
@@ -250,10 +330,18 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
     fun save(name: String? = null) {
         val stage = _stage.value as? Stage.Cut ?: return
         val r = stage.refine
-        _stage.value = Stage.Working("Cutting out")
+        _stage.value = Stage.Working(if (r.editing != null) "Re-cutting" else "Cutting out")
         viewModelScope.launch {
             val saved = withContext(Dispatchers.IO) {
                 val bitmap = Cutout.compose(r.source, r.mask) ?: return@withContext null
+                val existing = r.editing
+                if (existing != null) {
+                    // A re-cut keeps its id, its name and the day it was caught. Saving a new one
+                    // would leave the old sticker in the tray beside it and quietly double the
+                    // collection every time somebody tidied an edge.
+                    store.replace(existing, bitmap, r.mask, r.source)
+                    return@withContext store.get(existing)
+                }
                 // Only when the caller had no name of its own. The labeller is a suggestion, and
                 // a suggestion must never overwrite something a person typed.
                 val guess = if (name.isNullOrBlank()) Namer.suggest(bitmap) else null
@@ -262,6 +350,8 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
                     name = name ?: guess,
                     capturedAt = r.capturedAt,
                     suggested = guess != null,
+                    source = r.source,
+                    mask = r.mask,
                 )
             }
             if (saved == null) {
@@ -270,9 +360,53 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             undo.clear()
+            redo.clear()
             _undoDepth.value = 0
+            _redoDepth.value = 0
             refresh()
             _stage.value = Stage.Detail(saved.id)
+        }
+    }
+
+    /**
+     * Reopens a saved sticker for another go.
+     *
+     * Loads the photograph it came from and the mask that cut it, so the second edit starts
+     * exactly where the first one finished — every wand fill and brush stroke still in place. A
+     * sticker whose source was never kept, or was lost in a restore, cannot be reopened and says
+     * so rather than silently starting from a blank mask.
+     */
+    fun edit(id: String) {
+        _stage.value = Stage.Working("Opening")
+        viewModelScope.launch {
+            val loaded = withContext(Dispatchers.IO) {
+                val source = store.loadSource(id) ?: return@withContext null
+                val mask = store.loadMask(id, source.width, source.height)
+                    ?: return@withContext null
+                val px = IntArray(source.width * source.height)
+                source.getPixels(px, 0, source.width, 0, 0, source.width, source.height)
+                Triple(source, px, mask)
+            }
+            if (loaded == null) {
+                say("That one can't be reopened")
+                _stage.value = Stage.Detail(id)
+                return@launch
+            }
+            val (source, px, mask) = loaded
+            undo.clear()
+            redo.clear()
+            _undoDepth.value = 0
+            _redoDepth.value = 0
+            val sticker = store.get(id)
+            _stage.value = Stage.Cut(
+                Refine(
+                    source = source,
+                    pixels = px,
+                    mask = mask,
+                    capturedAt = sticker?.capturedAt ?: System.currentTimeMillis(),
+                    editing = id,
+                ),
+            )
         }
     }
 
@@ -312,7 +446,9 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
     private fun pushUndo(mask: Mask) {
         undo.addLast(mask.a.copyOf())
         while (undo.size > UNDO_DEPTH) undo.removeFirst()
+        redo.clear()
         _undoDepth.value = undo.size
+        _redoDepth.value = 0
     }
 
     private companion object {

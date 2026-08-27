@@ -34,7 +34,19 @@ class Backup : LightSyncBackup() {
     override fun stores() = listOf(
         FileStore(
             "collection",
-            Contents(files = listOf(StickerStore.DIR, "stickers.json", "counter.txt")),
+            Contents(
+                files = listOf(
+                    StickerStore.DIR,
+                    // The photographs a sticker was cut from and the masks that cut them. In the
+                    // backup because they are what makes a sticker editable, and a restore that
+                    // brought back the collection but not the ability to fix it would be a
+                    // restore that quietly downgraded every sticker in it.
+                    StickerStore.SOURCES,
+                    StickerStore.MASKS,
+                    "stickers.json",
+                    "counter.txt",
+                ),
+            ),
         ),
         FileStore("settings", Contents(prefs = listOf("collect"))),
     )

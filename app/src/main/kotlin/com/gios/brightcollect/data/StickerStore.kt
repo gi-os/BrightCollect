@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
 import com.gios.brightcollect.cut.Cutout
+import com.gios.brightcollect.cut.Mask
 import java.io.File
 import java.util.UUID
 
@@ -29,10 +30,91 @@ import java.util.UUID
 class StickerStore(private val context: Context) {
 
     private val dir: File get() = File(context.filesDir, DIR).apply { mkdirs() }
+
+    /**
+     * The photograph a sticker was cut from, and the mask that cut it.
+     *
+     * **Kept so a sticker stays editable.** The cutout alone cannot be re-edited in any useful
+     * sense: the pixels outside the mask are gone, so you could rub more away but never add back
+     * a handle the model dropped, and the wand has nothing to sample because the background it
+     * would sample is what was removed. Re-editing needs the original.
+     *
+     * The mask is kept as well as the source, and that is the half people leave out. Without it,
+     * reopening would have to re-run the model — which throws away every hand correction, so the
+     * second edit starts from worse than where the first one finished.
+     *
+     * About 400 kB a sticker between them, against roughly 200 kB for the sticker itself.
+     */
+    private val sourceDir: File get() = File(context.filesDir, SOURCES).apply { mkdirs() }
+    private val maskDir: File get() = File(context.filesDir, MASKS).apply { mkdirs() }
     private val index: File get() = File(context.filesDir, INDEX)
     private val counter: File get() = File(context.filesDir, COUNTER)
 
     fun fileFor(id: String): File = File(dir, "$id.png")
+
+    fun sourceFor(id: String): File = File(sourceDir, "$id.jpg")
+
+    fun maskFor(id: String): File = File(maskDir, "$id.png")
+
+    /** True when this sticker can be reopened rather than only looked at. */
+    fun editable(id: String): Boolean = sourceFor(id).exists() && maskFor(id).exists()
+
+    /**
+     * Writes the source and the mask beside a sticker.
+     *
+     * JPEG for the photograph — it is a photograph, and the mask is what has to be exact.
+     * Quality 88 rather than 100 because the difference is invisible and the file is a third the
+     * size, and this is the part of a collection that grows without being looked at.
+     */
+    fun keepSource(id: String, source: Bitmap, mask: Mask) {
+        runCatching {
+            sourceFor(id).outputStream().use { source.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+        }.onFailure { Log.w(TAG, "could not keep the source: $it") }
+        runCatching {
+            maskFor(id).outputStream().use { out ->
+                Cutout.writePng(maskToBitmap(mask), out)
+            }
+        }.onFailure { Log.w(TAG, "could not keep the mask: $it") }
+    }
+
+    fun loadSource(id: String): Bitmap? = runCatching {
+        BitmapFactory.decodeFile(sourceFor(id).absolutePath)
+    }.getOrNull()
+
+    fun loadMask(id: String, width: Int, height: Int): Mask? = runCatching {
+        val bitmap = BitmapFactory.decodeFile(maskFor(id).absolutePath) ?: return@runCatching null
+        val m = bitmapToMask(bitmap)
+        bitmap.recycle()
+        // A mask saved against a differently sized source is not a mask for this one. It can
+        // happen across a restore, and stretching it would hand back a cutout that is subtly
+        // offset everywhere rather than obviously broken.
+        if (m.width == width && m.height == height) m else Mask.scale(m, width, height)
+    }.getOrNull()
+
+    /**
+     * The mask as an opaque grey PNG.
+     *
+     * Stored in the colour channels with alpha left at 255, not *as* alpha. A PNG whose colour is
+     * black and whose alpha carries the data is the obvious encoding and the wrong one: Android
+     * premultiplies on the way into a bitmap, so every pixel of black-with-alpha reads back as
+     * black-with-alpha-zero and the mask decodes as empty.
+     */
+    private fun maskToBitmap(mask: Mask): Bitmap {
+        val px = IntArray(mask.width * mask.height)
+        for (i in px.indices) {
+            val v = mask.a[i].toInt() and 0xFF
+            px[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
+        }
+        return Bitmap.createBitmap(px, mask.width, mask.height, Bitmap.Config.ARGB_8888)
+    }
+
+    private fun bitmapToMask(bitmap: Bitmap): Mask {
+        val px = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(px, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        val m = Mask(bitmap.width, bitmap.height)
+        for (i in px.indices) m.a[i] = (px[i] and 0xFF).toByte()
+        return m
+    }
 
     @Synchronized
     fun all(): List<Sticker> {
@@ -60,6 +142,8 @@ class StickerStore(private val context: Context) {
         name: String? = null,
         capturedAt: Long = System.currentTimeMillis(),
         suggested: Boolean = false,
+        source: Bitmap? = null,
+        mask: Mask? = null,
     ): Sticker {
         val id = UUID.randomUUID().toString().take(12)
         val file = fileFor(id)
@@ -74,6 +158,10 @@ class StickerStore(private val context: Context) {
             height = bitmap.height,
             suggested = suggested,
         )
+        // After the sticker and its index entry, because it is the part you can lose without
+        // losing anything you made — a sticker with no source is still a sticker, it just cannot
+        // be reopened.
+        if (source != null && mask != null) keepSource(id, source, mask)
         write(all() + sticker)
         return sticker
     }
@@ -86,7 +174,19 @@ class StickerStore(private val context: Context) {
     @Synchronized
     fun delete(id: String) {
         runCatching { fileFor(id).delete() }
+        runCatching { sourceFor(id).delete() }
+        runCatching { maskFor(id).delete() }
         write(all().filterNot { it.id == id })
+    }
+
+    /** Replaces a sticker's image and mask in place, keeping its id, name and date. */
+    @Synchronized
+    fun replace(id: String, bitmap: Bitmap, mask: Mask, source: Bitmap) {
+        runCatching { fileFor(id).outputStream().use { Cutout.writePng(bitmap, it) } }
+        keepSource(id, source, mask)
+        all().firstOrNull { it.id == id }?.let {
+            update(it.copy(width = bitmap.width, height = bitmap.height))
+        }
     }
 
     fun load(id: String): Bitmap? {
@@ -119,14 +219,25 @@ class StickerStore(private val context: Context) {
         }.getOrNull()
     }
 
-    /** Deletes PNGs the index does not mention. See [save] for how one gets there. */
+    /** Deletes files the index does not mention. See [save] for how one gets there. */
     @Synchronized
     fun sweep(): Int {
-        val known = all().map { "${it.id}.png" }.toSet()
-        val orphans = dir.listFiles()?.filter { it.name !in known }.orEmpty()
-        orphans.forEach { runCatching { it.delete() } }
-        return orphans.size
+        val ids = all().map { it.id }.toSet()
+        var n = 0
+        listOf(dir, sourceDir, maskDir).forEach { d ->
+            d.listFiles()?.forEach { f ->
+                if (f.name.substringBeforeLast('.') !in ids) {
+                    runCatching { f.delete() }
+                    n++
+                }
+            }
+        }
+        return n
     }
+
+    /** What the collection costs on disk, for the settings readout. */
+    fun bytes(): Long = listOf(dir, sourceDir, maskDir)
+        .sumOf { d -> d.listFiles()?.sumOf { it.length() } ?: 0L }
 
     private fun write(items: List<Sticker>) {
         runCatching {
@@ -156,6 +267,8 @@ class StickerStore(private val context: Context) {
     companion object {
         private const val TAG = "StickerStore"
         const val DIR = "stickers"
+        const val SOURCES = "sources"
+        const val MASKS = "masks"
         private const val INDEX = "stickers.json"
         private const val COUNTER = "counter.txt"
     }

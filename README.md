@@ -53,8 +53,9 @@ Services, and LightOS runs microG — the call binds and never answers. That is 
 that made Roll use ZXing for barcodes. ML Kit's only bundled segmenter finds people, and this
 app is for objects.
 
-The APK is about 20 MB, most of it ONNX Runtime's arm64 native library. There is one ABI in
-there on purpose; four would be a 100 MB download for a phone that is arm64.
+The APK is about 34 MB, most of it ONNX Runtime's arm64 native library — 26 MB of it, stored
+uncompressed so it can be mapped rather than unpacked. There is one ABI in there on purpose:
+four would put it past 100 MB, and the LPIII is arm64.
 
 ## Building
 

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Shake-to-report, and nothing else. The cutout is entirely on the phone: the model is
+         in the APK and ONNX Runtime never opens a socket. This app talks to the network only
+         after you have tapped SEND on a report you wrote yourself. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!--
+        The panel is a full-colour AMOLED; Light's black and white is the accessibility
+        daltonizer pinned to monochromacy. A shelf of stickers is the one screen in this app
+        with hues on it, so lifting the pin while the shelf or the viewfinder is up is what
+        makes a collection look like a collection instead of 200 grey blobs.
+
+        The permission is signature|privileged|development, so it cannot be granted by the
+        installer and is not requested at runtime — one adb line grants it, and without it the
+        app just stays grey:
+
+            adb shell pm grant com.gios.brightcollect android.permission.WRITE_SECURE_SETTINGS
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
+    <uses-feature android:name="android.hardware.camera.any" android:required="true" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!--
+        **Package visibility.** From Android 11 an app cannot see another app's activities
+        unless it says which ones it is looking for, and `resolveActivity` returns null for
+        everything else. Roll shipped a send button that reported "LightChat can't receive
+        photos" on a phone with LightChat installed for exactly this reason: the intent
+        resolved fine, we just could not see that it did.
+    -->
+    <queries>
+        <package android:name="com.gios.lightchat" />
+        <package android:name="com.gios.lightnotebook" />
+        <intent>
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="image/*" />
+        </intent>
+    </queries>
+
+    <application
+        android:name=".CollectApp"
+        android:allowBackup="true"
+        android:hardwareAccelerated="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="Collect"
+        android:supportsRtl="false"
+        android:theme="@style/Theme.BrightCollect">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Collect"
+            android:launchMode="singleTop"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.BrightCollect">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!--
+                A photograph sent here from Roll becomes a sticker. This is the cheap half of
+                the integration and the one that makes the app feel connected: the roll already
+                has a send button, and this registers as somewhere to send to.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <!-- brightcollect://sticker/<id> — how BrightNotebook opens the sticker behind a
+                 calendar entry. Same shape as brightrecorder://clip. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="brightcollect" android:host="sticker" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            Stickers live in this app's own files directory, not in MediaStore, because a
+            cutout with a transparent background is not a photograph and does not belong in
+            the camera roll. Sending one to another app therefore needs a FileProvider.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!--
+            LightSync finds apps by provider authority suffix, so this entry is the whole
+            registration. exported=true is required for a cross-app ContentProvider and is not
+            the trust boundary: the provider rejects any caller that is not LightSync by
+            package and by signing certificate, checked on every call.
+        -->
+        <provider
+            android:name=".backup.Backup"
+            android:authorities="${applicationId}.lightsync.backup"
+            android:exported="true" />
+
+    </application>
+</manifest>

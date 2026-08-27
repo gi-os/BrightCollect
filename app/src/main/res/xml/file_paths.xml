@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Only the sticker PNGs. Not files-path with an empty path, which would expose the
+         index and anything else this app ever writes. -->
+    <files-path name="stickers" path="stickers/" />
+</paths>

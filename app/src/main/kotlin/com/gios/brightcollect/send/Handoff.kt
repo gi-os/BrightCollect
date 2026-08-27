@@ -100,8 +100,13 @@ object Handoff {
      * send arrives as a broken image.
      *
      * **`image/png`, stated exactly.** The alpha channel is the whole point of a sticker, and a
-     * receiver told `image/*` is free to re-encode to JPEG, which silently flattens it onto
-     * black.
+     * receiver told only that this is an image is free to re-encode it as JPEG, which silently
+     * flattens the transparency onto black.
+     *
+     * (Written without the wildcard on purpose. Kotlin nests block comments, so a literal
+     * slash-star inside a doc comment opens one that never closes, and the file then stops
+     * compiling at its last line — several hundred lines from the cause. Roll's Handoff carries
+     * the same note for the same reason.)
      */
     private fun intentFor(context: Context, uri: Uri): Intent =
         Intent(Intent.ACTION_SEND).apply {

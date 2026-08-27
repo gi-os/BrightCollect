@@ -40,7 +40,24 @@ jobs:
           GPR_USER: ${{ secrets.GPR_USER }}
           GPR_TOKEN: ${{ secrets.GPR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./gradlew :app:assembleDebug --stacktrace
+        run: ./gradlew :app:assembleDebug :app:assembleRelease --stacktrace
+
+      # The release build too, which the other repos leave to build.yml on main. It is here
+      # because everything that can go wrong in this app's packaging is release-only: R8 full
+      # mode against ONNX Runtime's JNI entry points, resource shrinking, and the model asset.
+      # A push to main cuts a public release, so "does the shipping configuration work" is not
+      # a question to first ask there.
+      - name: Verify the release package
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          SIZE=$(unzip -p "$APK" assets/u2netp.onnx | wc -c)
+          echo "assets/u2netp.onnx = $SIZE bytes"
+          [ "$SIZE" -gt 4000000 ] || { echo '::error::u2netp.onnx missing or truncated'; exit 1; }
+          LIBS=$(unzip -l "$APK" | grep -oE 'lib/[^/]+/libonnxruntime\.so' | sort -u)
+          echo "$LIBS"
+          [ "$LIBS" = "lib/arm64-v8a/libonnxruntime.so" ] \
+            || { echo '::error::expected exactly one arm64-v8a libonnxruntime.so'; exit 1; }
+          echo "release APK is $(du -h "$APK" | cut -f1)"
 
       - name: Upload APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

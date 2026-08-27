@@ -51,7 +51,7 @@ object Tray {
      * Soft, not hard — see [sizeFor]. Something genuinely long and thin has to be allowed past it
      * or it comes out as a hairline, which is the failure area-normalising is supposed to prevent.
      */
-    private const val MAX_EDGE_FRACTION = 0.48f
+    private const val MAX_EDGE_FRACTION = 0.44f
 
     /** The short edge a sticker is preferred to stay above, for the same reason. */
     private const val MIN_EDGE = 40
@@ -76,6 +76,11 @@ object Tray {
      * The long-edge cap moves with the density for the same reason: at three across the average
      * sticker is a third of the tray, so a cap of 0.36 would clamp most of them to nearly the
      * same size and flatten the variety that makes a flat lay read as objects.
+     *
+     * These four numbers were picked on the **worst** tray out of fifteen — five collections
+     * across three screen widths — rather than on the best. Fill swings by about fifteen points
+     * with the shape of what you happen to have collected, so tuning against one arrangement
+     * picks a number that only holds for that arrangement.
      *
      * Expressed as a divisor of the width rather than a dp number so the tray has the same
      * density on any screen, which is the same reason the type scale is a fraction of the height.

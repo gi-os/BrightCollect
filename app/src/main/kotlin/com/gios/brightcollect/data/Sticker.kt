@@ -19,6 +19,15 @@ data class Sticker(
     val height: Int,
     /** Free text, one line. Where it was, what it was. */
     val note: String = "",
+    /**
+     * True while [name] is still the labeller's guess and nobody has touched it.
+     *
+     * Persisted rather than kept in memory, because it changes what the detail screen does: a
+     * guessed name opens with the whole field selected, so typing replaces it in one go, and a
+     * name you chose opens with the caret at the end. Restoring a backup has to remember which
+     * kind it was, or every name you carefully typed comes back pre-selected for deletion.
+     */
+    val suggested: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put(KEY_ID, id)
@@ -27,6 +36,7 @@ data class Sticker(
         .put(KEY_W, width)
         .put(KEY_H, height)
         .put(KEY_NOTE, note)
+        .put(KEY_SUGGESTED, suggested)
 
     companion object {
         private const val KEY_ID = "id"
@@ -35,6 +45,7 @@ data class Sticker(
         private const val KEY_W = "w"
         private const val KEY_H = "h"
         private const val KEY_NOTE = "note"
+        private const val KEY_SUGGESTED = "suggested"
 
         /**
          * Reads one entry, or null if it is unusable.
@@ -53,6 +64,7 @@ data class Sticker(
                 width = o.optInt(KEY_W, 0),
                 height = o.optInt(KEY_H, 0),
                 note = o.optString(KEY_NOTE, ""),
+                suggested = o.optBoolean(KEY_SUGGESTED, false),
             )
         }
 

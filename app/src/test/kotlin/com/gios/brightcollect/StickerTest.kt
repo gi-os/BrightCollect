@@ -10,7 +10,7 @@ class StickerTest {
 
     @Test
     fun `a round trip through json keeps every field`() {
-        val s = Sticker("abc123", "Basil's bowl", 1_700_000_000_000L, 800, 600, "kitchen")
+        val s = Sticker("abc123", "Basil's bowl", 1_700_000_000_000L, 800, 600, "kitchen", suggested = true)
         val back = Sticker.listFromJson(Sticker.listToJson(listOf(s)))
         assertEquals(listOf(s), back)
     }
@@ -34,6 +34,17 @@ class StickerTest {
     @Test
     fun `an entry with no id is dropped`() {
         assertNull(Sticker.fromJson(org.json.JSONObject("""{"name":"x"}""")))
+    }
+
+    @Test
+    fun `a name with no suggested flag reads as one the user chose`() {
+        // The default has to be false, not true. An index written by v1.0 has no such key, and
+        // reading a missing key as "guessed" would open every sticker you ever named with its
+        // name selected and one keystroke from being wiped.
+        val old = org.json.JSONObject(
+            """{"id":"x","name":"Mug","at":1,"w":10,"h":10}""",
+        )
+        assertEquals(false, Sticker.fromJson(old)?.suggested)
     }
 
     @Test

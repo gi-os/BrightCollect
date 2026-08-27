@@ -102,6 +102,20 @@
         </provider>
 
         <!--
+            What you caught on a day, offered to BrightNotebook. Read-only, and it replaces
+            writing stickers into MediaStore — see share/CaughtProvider.kt for why a cutout in the
+            photo library is a photograph and gets drawn like one.
+
+            exported=true is required for a cross-app ContentProvider and gives away nothing: the
+            provider serves a list of names and dates, and PNGs the user made, and refuses to write
+            anything at all.
+        -->
+        <provider
+            android:name=".share.CaughtProvider"
+            android:authorities="com.gios.brightcollect.caught"
+            android:exported="true" />
+
+        <!--
             LightSync finds apps by provider authority suffix, so this entry is the whole
             registration. exported=true is required for a cross-app ContentProvider and is not
             the trust boundary: the provider rejects any caller that is not LightSync by

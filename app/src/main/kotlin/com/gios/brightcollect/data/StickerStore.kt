@@ -55,7 +55,12 @@ class StickerStore(private val context: Context) {
      * entry pointing at nothing, which is a broken cell in the grid rather than a missing one.
      */
     @Synchronized
-    fun save(bitmap: Bitmap, name: String? = null, capturedAt: Long = System.currentTimeMillis()): Sticker {
+    fun save(
+        bitmap: Bitmap,
+        name: String? = null,
+        capturedAt: Long = System.currentTimeMillis(),
+        suggested: Boolean = false,
+    ): Sticker {
         val id = UUID.randomUUID().toString().take(12)
         val file = fileFor(id)
         file.outputStream().use { Cutout.writePng(bitmap, it) }
@@ -67,6 +72,7 @@ class StickerStore(private val context: Context) {
             capturedAt = capturedAt,
             width = bitmap.width,
             height = bitmap.height,
+            suggested = suggested,
         )
         write(all() + sticker)
         return sticker

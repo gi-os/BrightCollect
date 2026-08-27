@@ -6,13 +6,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gios.brightcollect.cut.Cutout
 import com.gios.brightcollect.cut.Mask
+import com.gios.brightcollect.cut.Namer
 import com.gios.brightcollect.cut.Segmenter
 import com.gios.brightcollect.cut.Wand
 import com.gios.brightcollect.cut.feather
 import com.gios.brightcollect.cut.harden
 import com.gios.brightcollect.data.Sticker
 import com.gios.brightcollect.data.StickerStore
-import com.gios.brightcollect.share.Notebook
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -243,9 +243,9 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Saves what is on the refine screen.
      *
-     * The MediaStore copy that puts this on BrightNotebook's calendar is written after the
-     * sticker itself and its failure is swallowed — a calendar entry is worth less than the
-     * thing the user made, and the two must not share a fate.
+     * Nothing is written outside this app. BrightNotebook reads the day's catches from
+     * [com.gios.brightcollect.share.CaughtProvider] when it draws a day, so there is no copy to
+     * keep in step and no second place a sticker can go missing from.
      */
     fun save(name: String? = null) {
         val stage = _stage.value as? Stage.Cut ?: return
@@ -254,9 +254,15 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val saved = withContext(Dispatchers.IO) {
                 val bitmap = Cutout.compose(r.source, r.mask) ?: return@withContext null
-                val sticker = store.save(bitmap, name, r.capturedAt)
-                Notebook.publish(getApplication(), sticker, bitmap)
-                sticker
+                // Only when the caller had no name of its own. The labeller is a suggestion, and
+                // a suggestion must never overwrite something a person typed.
+                val guess = if (name.isNullOrBlank()) Namer.suggest(bitmap) else null
+                store.save(
+                    bitmap = bitmap,
+                    name = name ?: guess,
+                    capturedAt = r.capturedAt,
+                    suggested = guess != null,
+                )
             }
             if (saved == null) {
                 say("Nothing left to cut out")
@@ -273,7 +279,9 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
     fun rename(id: String, name: String) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                store.get(id)?.let { store.update(it.copy(name = name)) }
+                // suggested = false: whatever it says now, a person has been shown it and left
+                // it there, so it is theirs.
+                store.get(id)?.let { store.update(it.copy(name = name, suggested = false)) }
             }
             refresh()
         }
@@ -293,6 +301,7 @@ class CollectViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         super.onCleared()
         segmenter.close()
+        Namer.close()
     }
 
     private fun updateRefine(block: (Refine) -> Refine) {

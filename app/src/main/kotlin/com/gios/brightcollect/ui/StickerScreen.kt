@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,7 +60,26 @@ fun StickerScreen(
     val colors = LightThemeTokens.colors
     val context = LocalContext.current
     var full by remember(sticker.id) { mutableStateOf<Bitmap?>(null) }
-    var name by remember(sticker.id) { mutableStateOf(sticker.name) }
+    /**
+     * The name, and where the caret is in it.
+     *
+     * A `TextFieldValue` rather than a `String` so the selection can be set. When the name is
+     * still the labeller's guess the whole thing starts selected, and the first keystroke replaces
+     * it — which is what makes a wrong guess cost nothing. A name you typed opens with the caret
+     * at the end, because you are coming back to edit it rather than to overwrite it.
+     */
+    var name by remember(sticker.id) {
+        mutableStateOf(
+            TextFieldValue(
+                text = sticker.name,
+                selection = if (sticker.suggested) {
+                    TextRange(0, sticker.name.length)
+                } else {
+                    TextRange(sticker.name.length)
+                },
+            ),
+        )
+    }
     var confirmDelete by remember(sticker.id) { mutableStateOf(false) }
 
     LaunchedEffect(sticker.id) {
@@ -92,7 +113,7 @@ fun StickerScreen(
 
         BasicTextField(
             value = name,
-            onValueChange = { name = it.take(40) },
+            onValueChange = { name = it.copy(text = it.text.take(40)) },
             singleLine = true,
             textStyle = lightTextStyle(LightTextVariant.Copy).copy(
                 color = colors.content,
@@ -122,7 +143,11 @@ fun StickerScreen(
                 onClick = {
                     // Saved on the way out rather than behind a SAVE button. There is one field
                     // and leaving the page is the only way to finish with it.
-                    if (name != sticker.name) onRename(name)
+                    //
+                    // Also sent when the text is unchanged but the name was a guess: keeping it is
+                    // a decision, and it stops the field opening pre-selected for deletion every
+                    // time you come back to a sticker whose suggestion you were happy with.
+                    if (name.text != sticker.name || sticker.suggested) onRename(name.text)
                     onBack()
                 },
             )

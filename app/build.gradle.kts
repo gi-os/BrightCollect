@@ -158,6 +158,15 @@ dependencies {
      */
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.25.1")
 
+    /*
+     * Guessing what the thing is, to prefill its name. The *bundled* labeller — the model is in
+     * the APK — for exactly the reason the cutout is not ML Kit: the unbundled artifact
+     * (`play-services-mlkit-image-labeling`) is delivered through Play Services, which LightOS
+     * does not have. 5.7 MB, 400-odd everyday labels. See cut/Namer.kt for why this rather than
+     * an ImageNet model through the ONNX Runtime already here.
+     */
+    implementation("com.google.mlkit:image-labeling:17.0.9")
+
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     // The mask arithmetic and the store are deliberately free of Android imports, so they can

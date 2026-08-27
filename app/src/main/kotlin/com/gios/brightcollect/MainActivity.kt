@@ -176,7 +176,6 @@ class MainActivity : ComponentActivity() {
                                         store = vm.stickers(),
                                         onRename = { vm.rename(sticker.id, it) },
                                         onEdit = { vm.edit(sticker.id) },
-                                        editable = vm.stickers().editable(sticker.id),
                                         onDelete = { vm.delete(sticker.id) },
                                         onBack = { vm.go(Stage.Shelf) },
                                         onSaid = vm::say,

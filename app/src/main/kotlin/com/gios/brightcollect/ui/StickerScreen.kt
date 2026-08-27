@@ -55,8 +55,6 @@ fun StickerScreen(
     store: StickerStore,
     onRename: (String) -> Unit,
     onEdit: () -> Unit,
-    /** False for a sticker made before v1.4, whose source was never kept. */
-    editable: Boolean,
     onDelete: () -> Unit,
     onBack: () -> Unit,
     onSaid: (String) -> Unit,
@@ -90,8 +88,25 @@ fun StickerScreen(
     var cleared by remember(sticker.id) { mutableStateOf(false) }
     var confirmDelete by remember(sticker.id) { mutableStateOf(false) }
 
+    /**
+     * Whether this one can be reopened — false for a sticker cut before v1.4, whose source was
+     * never kept beside it.
+     *
+     * Answered off the main thread with the picture, not read inline in the composition. It is
+     * two `File.exists()` calls, which is cheap once and is not once: it would run on every
+     * recomposition of this screen, including every keystroke in the name field.
+     */
+    var editable by remember(sticker.id) { mutableStateOf(false) }
+
     LaunchedEffect(sticker.id) {
-        full = withContext(Dispatchers.IO) { store.load(sticker.id) }
+        withContext(Dispatchers.IO) {
+            val bitmap = store.load(sticker.id)
+            val canEdit = store.editable(sticker.id)
+            withContext(Dispatchers.Main) {
+                full = bitmap
+                editable = canEdit
+            }
+        }
     }
 
     ColourEffect(enabled = true)

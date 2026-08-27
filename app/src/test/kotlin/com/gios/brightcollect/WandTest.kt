@@ -35,10 +35,24 @@ class WandTest {
     }
 
     @Test
-    fun `tolerance high enough swallows the frame`() {
-        // The guard rail this justifies: the UI refuses a fill that took nearly everything,
-        // because a wand that selects the whole photograph has told you nothing.
+    fun `the clamp stops the wand bridging full contrast`() {
+        // Asking for more than MAX_TOLERANCE gets MAX_TOLERANCE, and 128 of Chebyshev distance
+        // cannot cross the 255 between white and black. So on a high-contrast scene the wand
+        // physically cannot take the whole frame, however hard it is pushed.
         val region = Wand.select(scene(), 8, 8, x = 0, y = 0, tolerance = 255)
+        assertEquals(64 - 16, Wand.size(region))
+    }
+
+    @Test
+    fun `a low-contrast scene is what the fill guard is for`() {
+        // The case the clamp does not cover, and the reason CollectViewModel refuses a fill
+        // above MAX_FILL: two nearly identical greys are well inside 128 of each other, so one
+        // tap at a high tolerance really does take the entire photograph — which would wipe the
+        // mask and tell the user nothing.
+        val a = 0xFF808080.toInt()
+        val b = 0xFF8A8A8A.toInt()
+        val px = IntArray(64) { i -> if ((i % 8) in 2..5 && (i / 8) in 2..5) b else a }
+        val region = Wand.select(px, 8, 8, x = 0, y = 0, tolerance = 40)
         assertEquals(64, Wand.size(region))
     }
 

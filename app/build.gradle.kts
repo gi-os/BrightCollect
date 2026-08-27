@@ -33,9 +33,13 @@ android {
         // shape as Roll's.
         minSdk = 33
         targetSdk = 35
-        // CI overwrites both from the workflow run number; see .github/workflows/build.yml
+        // CI overwrites both from the workflow run number; see .github/workflows/build.yml.
+        //
+        // Only the major.minor here is read — the workflow takes them and appends the run number
+        // as the patch. So a release whose notes announce a new minor has to have this bumped
+        // first, or the tag says 1.0.2 while RELEASE_NOTES.md says v1.1 and nothing complains.
         versionCode = 1
-        versionName = "1.0.1"
+        versionName = "1.1.0"
 
         buildConfigField("String", "REPORT_TOKEN", "\"$reportToken\"")
         buildConfigField("String", "REPORT_REPO", "\"gi-os/light-reports\"")

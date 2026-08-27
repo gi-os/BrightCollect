@@ -51,23 +51,36 @@ object Tray {
      * Soft, not hard — see [sizeFor]. Something genuinely long and thin has to be allowed past it
      * or it comes out as a hairline, which is the failure area-normalising is supposed to prevent.
      */
-    private const val MAX_EDGE_FRACTION = 0.36f
+    private const val MAX_EDGE_FRACTION = 0.48f
 
     /** The short edge a sticker is preferred to stay above, for the same reason. */
-    private const val MIN_EDGE = 34
+    private const val MIN_EDGE = 40
 
     /**
      * How dense the tray is, as a divisor of the container's area.
      *
      * A sticker is scaled towards `containerWidth² / DENSITY`, so the average one is about
-     * `containerWidth / sqrt(DENSITY)` on a side — meaning `sqrt(DENSITY)` of them fit across.
-     * 25 puts four across, measured rather than reasoned: packing loses some of it to the gap and
-     * to the rotation inflating each box, so the arithmetic alone lands about ten per cent low.
+     * `containerWidth / sqrt(DENSITY)` on a side — meaning roughly `sqrt(DENSITY)` fit across.
+     * 14 puts three across. Measured rather than reasoned: packing loses some of it to the gap
+     * and to the rotation inflating each box, so the arithmetic alone lands about ten per cent
+     * low.
+     *
+     * **Three across and a full tray are not the same knob**, which is the thing worth writing
+     * down. The first three-across version left a quarter of the screen empty, and the fix was
+     * read as "make them smaller" — four across filled it, and made every sticker too small to
+     * see. What was actually wrong was the *packing*: an 8dp gap and a 56dp floor on the short
+     * edge, which together stopped small stickers tucking into the spaces beside big ones. With
+     * the gap at 4 and the floor at 40, three across fills 80% of the tray where it used to fill
+     * 72% — fuller than the four-across version managed, at nearly twice the size.
+     *
+     * The long-edge cap moves with the density for the same reason: at three across the average
+     * sticker is a third of the tray, so a cap of 0.36 would clamp most of them to nearly the
+     * same size and flatten the variety that makes a flat lay read as objects.
      *
      * Expressed as a divisor of the width rather than a dp number so the tray has the same
      * density on any screen, which is the same reason the type scale is a fraction of the height.
      */
-    private const val DENSITY = 25
+    private const val DENSITY = 14
 
     data class Item(val id: String, val width: Int, val height: Int)
 

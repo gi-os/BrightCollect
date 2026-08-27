@@ -131,14 +131,14 @@ class TrayTest {
     }
 
     @Test
-    fun `about four fit across`() {
+    fun `about three fit across`() {
         // The density constant's whole job, asserted where a change to it has to come and explain
-        // itself. Measured as the mean box width against the tray, which is what "four across"
+        // itself. Measured as the mean box width against the tray, which is what "three across"
         // means when nothing is in a column.
         val layout = Tray.lay(items(60), width, area)
         val meanWidth = layout.placed.sumOf { it.boxWidth }.toFloat() / layout.placed.size
         val across = width / meanWidth
-        assertTrue("%.2f across, wanted about four".format(across), across in 3.6f..4.6f)
+        assertTrue("%.2f across, wanted about three".format(across), across in 2.7f..3.5f)
     }
 
     @Test
@@ -149,7 +149,9 @@ class TrayTest {
         val used = layout.placed.sumOf { it.boxWidth.toLong() * it.boxHeight }
         val canvas = width.toLong() * layout.height
         val fill = used.toDouble() / canvas
-        assertTrue("only %.0f%% of the tray is used".format(fill * 100), fill > 0.70)
+        // Paired with the test above on purpose: three across *and* a full tray. Either one
+        // alone is easy and neither alone is what the shelf should look like.
+        assertTrue("only %.0f%% of the tray is used".format(fill * 100), fill > 0.74)
     }
 
     @Test

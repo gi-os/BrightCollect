@@ -15,14 +15,18 @@ BrightNotebook's calendar.
 
 - **Cuts things out on the phone.** A 4.4 MB neural network is bundled in the APK. Nothing is
   uploaded, and it works with the radio off.
+- **Guesses what the thing is.** A second bundled model labels the finished cutout and prefills
+  the name, already selected, so a wrong guess costs one keystroke.
+- **Lays the collection out like a flat lay**, not a grid: each sticker at its own size and
+  angle, packed against its neighbours.
 - **Lets you fix it when it is wrong.** A magic wand takes a whole region of similar colour in
   one tap; a brush handles the edges the wand cannot describe. Both work in KEEP or CUT.
 - **Shows the collection in colour.** The LPIII panel is a full-colour AMOLED that LightOS
   pins to greyscale. The shelf lifts the pin, because a hundred grey cutouts are a hundred
   grey blobs. One adb line, below.
 - **Sends a sticker to BrightChat** as a PNG with its alpha intact.
-- **Puts captures on BrightNotebook's calendar** with no bridge at all — a flattened copy goes
-  into MediaStore under the capture date, which is where the calendar already looks.
+- **Puts captures on BrightNotebook's day** as stickers rather than photographs. It serves a
+  provider the notebook reads by date; nothing is copied and neither side needs a permission.
 - **Takes a photograph from Roll.** Collect registers as somewhere to send an image, so
   anything already on the roll can become a sticker.
 
@@ -53,9 +57,10 @@ Services, and LightOS runs microG — the call binds and never answers. That is 
 that made Roll use ZXing for barcodes. ML Kit's only bundled segmenter finds people, and this
 app is for objects.
 
-The APK is about 34 MB, most of it ONNX Runtime's arm64 native library — 26 MB of it, stored
-uncompressed so it can be mapped rather than unpacked. There is one ABI in there on purpose:
-four would put it past 100 MB, and the LPIII is arm64.
+The APK is about 47 MB, and almost all of it is two inference runtimes: ONNX Runtime's arm64
+library is 26 MB and ML Kit's is another 10.5 MB. The models themselves are small — 4.4 MB for
+the cutout, 2.9 MB for the labeller. There is one ABI in there on purpose: four would put it
+past 150 MB, and the LPIII is arm64.
 
 ## Building
 

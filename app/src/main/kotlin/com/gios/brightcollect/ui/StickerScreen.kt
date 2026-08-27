@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -63,23 +64,27 @@ fun StickerScreen(
     /**
      * The name, and where the caret is in it.
      *
-     * A `TextFieldValue` rather than a `String` so the selection can be set. When the name is
-     * still the labeller's guess the whole thing starts selected, and the first keystroke replaces
-     * it — which is what makes a wrong guess cost nothing. A name you typed opens with the caret
-     * at the end, because you are coming back to edit it rather than to overwrite it.
+     * **Tapping a guessed name empties the field.** The first version opened with the whole thing
+     * selected, on the theory that the next keystroke would replace it — which is true right up
+     * until you tap the field, because a tap places the caret and collapses the selection. So the
+     * gesture that means "I want to change this" was the exact gesture that threw away the
+     * shortcut, and a wrong guess had to be deleted a character at a time.
+     *
+     * It clears once, on the first focus, and only while the name is still the labeller's. A name
+     * you typed yourself opens with the caret at the end and stays put when you tap it, because
+     * there you are coming back to edit rather than to overwrite.
      */
     var name by remember(sticker.id) {
         mutableStateOf(
             TextFieldValue(
                 text = sticker.name,
-                selection = if (sticker.suggested) {
-                    TextRange(0, sticker.name.length)
-                } else {
-                    TextRange(sticker.name.length)
-                },
+                selection = TextRange(sticker.name.length),
             ),
         )
     }
+
+    /** Guards the clear so it happens on the first tap and never again this visit. */
+    var cleared by remember(sticker.id) { mutableStateOf(false) }
     var confirmDelete by remember(sticker.id) { mutableStateOf(false) }
 
     LaunchedEffect(sticker.id) {
@@ -115,12 +120,19 @@ fun StickerScreen(
             value = name,
             onValueChange = { name = it.copy(text = it.text.take(40)) },
             singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { focus ->
+                    if (focus.isFocused && sticker.suggested && !cleared) {
+                        cleared = true
+                        name = TextFieldValue("")
+                    }
+                },
             textStyle = lightTextStyle(LightTextVariant.Copy).copy(
                 color = colors.content,
                 textAlign = TextAlign.Center,
             ),
             cursorBrush = SolidColor(colors.content),
-            modifier = Modifier.fillMaxWidth(),
         )
 
         LightText(
@@ -147,7 +159,12 @@ fun StickerScreen(
                     // Also sent when the text is unchanged but the name was a guess: keeping it is
                     // a decision, and it stops the field opening pre-selected for deletion every
                     // time you come back to a sticker whose suggestion you were happy with.
-                    if (name.text != sticker.name || sticker.suggested) onRename(name.text)
+                    // A field left empty keeps the name it had. Clearing on tap and then
+                    // changing your mind must not be how a sticker ends up called nothing —
+                    // and a blank name in the tray is a cell with no label at all.
+                    val typed = name.text.trim()
+                    val next = typed.ifBlank { sticker.name }
+                    if (next != sticker.name || sticker.suggested) onRename(next)
                     onBack()
                 },
             )

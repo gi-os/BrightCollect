@@ -51,10 +51,23 @@ object Tray {
      * Soft, not hard — see [sizeFor]. Something genuinely long and thin has to be allowed past it
      * or it comes out as a hairline, which is the failure area-normalising is supposed to prevent.
      */
-    private const val MAX_EDGE_FRACTION = 0.46f
+    private const val MAX_EDGE_FRACTION = 0.36f
 
     /** The short edge a sticker is preferred to stay above, for the same reason. */
-    private const val MIN_EDGE = 56
+    private const val MIN_EDGE = 34
+
+    /**
+     * How dense the tray is, as a divisor of the container's area.
+     *
+     * A sticker is scaled towards `containerWidth² / DENSITY`, so the average one is about
+     * `containerWidth / sqrt(DENSITY)` on a side — meaning `sqrt(DENSITY)` of them fit across.
+     * 25 puts four across, measured rather than reasoned: packing loses some of it to the gap and
+     * to the rotation inflating each box, so the arithmetic alone lands about ten per cent low.
+     *
+     * Expressed as a divisor of the width rather than a dp number so the tray has the same
+     * density on any screen, which is the same reason the type scale is a fraction of the height.
+     */
+    private const val DENSITY = 25
 
     data class Item(val id: String, val width: Int, val height: Int)
 
@@ -81,6 +94,10 @@ object Tray {
 
     data class Layout(val placed: List<Placed>, val height: Int)
 
+    /** The area each sticker is scaled towards, for a tray [containerWidth] wide. See [DENSITY]. */
+    fun targetAreaFor(containerWidth: Int): Int =
+        max(1, containerWidth * containerWidth / DENSITY)
+
     /**
      * Packs [items] into [containerWidth], in whatever units the caller is using (dp here).
      *
@@ -93,7 +110,7 @@ object Tray {
         items: List<Item>,
         containerWidth: Int,
         targetArea: Int,
-        gap: Int = 8,
+        gap: Int = 4,
     ): Layout {
         if (items.isEmpty() || containerWidth <= 0) return Layout(emptyList(), 0)
 

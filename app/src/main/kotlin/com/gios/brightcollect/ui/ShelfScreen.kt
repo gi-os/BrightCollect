@@ -84,8 +84,9 @@ fun ShelfScreen(
         Tray.lay(
             items = stickers.map { Tray.Item(it.id, it.width, it.height) },
             containerWidth = trayWidth,
-            // Density, expressed so it holds on any screen: about three across on average.
-            targetArea = trayWidth * trayWidth / 13,
+            // Not a number here: the screen and the tests both ask Tray, so what is on the phone
+            // and what is asserted cannot drift apart.
+            targetArea = Tray.targetAreaFor(trayWidth),
         )
     }
 

@@ -10,7 +10,10 @@ import kotlin.random.Random
 class TrayTest {
 
     private val width = 343
-    private val area = 9_000
+
+    // The shipping density, not a number picked for the test. A test that packs at a density the
+    // app never uses proves nothing about the tray anybody looks at.
+    private val area = Tray.targetAreaFor(width)
 
     private fun items(n: Int, seed: Int = 7): List<Tray.Item> {
         val r = Random(seed)
@@ -128,6 +131,17 @@ class TrayTest {
     }
 
     @Test
+    fun `about four fit across`() {
+        // The density constant's whole job, asserted where a change to it has to come and explain
+        // itself. Measured as the mean box width against the tray, which is what "four across"
+        // means when nothing is in a column.
+        val layout = Tray.lay(items(60), width, area)
+        val meanWidth = layout.placed.sumOf { it.boxWidth }.toFloat() / layout.placed.size
+        val across = width / meanWidth
+        assertTrue("%.2f across, wanted about four".format(across), across in 3.6f..4.6f)
+    }
+
+    @Test
     fun `it packs tightly enough to look like a tray`() {
         // Not a beauty test — a guard against the skyline degenerating into one item per row,
         // which is what a broken frontier looks like and still passes every test above.
@@ -135,7 +149,7 @@ class TrayTest {
         val used = layout.placed.sumOf { it.boxWidth.toLong() * it.boxHeight }
         val canvas = width.toLong() * layout.height
         val fill = used.toDouble() / canvas
-        assertTrue("only %.0f%% of the tray is used".format(fill * 100), fill > 0.62)
+        assertTrue("only %.0f%% of the tray is used".format(fill * 100), fill > 0.70)
     }
 
     @Test

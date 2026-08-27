@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -82,10 +81,18 @@ fun CutScreen(
         composePreview(refine.source, refine.mask).asImageBitmap()
     }
 
-    // The size the image is actually drawn at, so a touch can be mapped back to a pixel. Set
-    // by the canvas on layout rather than assumed — the image is letterboxed inside its box and
-    // guessing the scale puts the wand's tap somewhere else entirely.
-    var drawn by remember { mutableStateOf(IntSize.Zero) }
+    // The canvas's measured size, and from it the rectangle the photograph actually occupies
+    // inside it. Both the drawing and the hit test read this one value — see [Fit] for the bug
+    // that came of having them work it out separately.
+    var canvas by remember { mutableStateOf(IntSize.Zero) }
+    val frame = remember(canvas, refine.source) {
+        Fit.inside(
+            boxWidth = canvas.width.toFloat(),
+            boxHeight = canvas.height.toFloat(),
+            srcWidth = refine.source.width,
+            srcHeight = refine.source.height,
+        )
+    }
 
     ColourEffect(enabled = true)
 
@@ -103,23 +110,29 @@ fun CutScreen(
             contentAlignment = Alignment.Center,
         ) {
             Canvas(
+                // Fills the box and letterboxes inside it, rather than deriving a height from
+                // the width. The whole photograph is visible at every aspect ratio, which is the
+                // point: a part of the picture you cannot see is a part you cannot paint on.
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(refine.source.width.toFloat() / refine.source.height)
-                    .onSizeChanged { drawn = it }
-                    .pointerInput(refine.tool, refine.tolerance, drawn) {
+                    .fillMaxSize()
+                    .onSizeChanged { canvas = it }
+                    .pointerInput(refine.tool, refine.tolerance, frame) {
                         if (refine.tool != Tool.Wand) return@pointerInput
                         detectTapGestures { at ->
-                            val p = toPixel(at, drawn, refine.source) ?: return@detectTapGestures
-                            onWand(p.x, p.y)
+                            val p = Fit.toSource(
+                                frame, at.x, at.y, refine.source.width, refine.source.height,
+                            ) ?: return@detectTapGestures
+                            onWand(p.first.roundToInt(), p.second.roundToInt())
                         }
                     }
-                    .pointerInput(refine.tool, refine.brush, drawn) {
+                    .pointerInput(refine.tool, refine.brush, frame) {
                         if (refine.tool != Tool.Brush) return@pointerInput
                         detectDragGestures(
                             onDragStart = { at ->
                                 onStrokeStart()
-                                toPixelF(at, drawn, refine.source)?.let { onPaint(it.x, it.y) }
+                                Fit.toSource(
+                                    frame, at.x, at.y, refine.source.width, refine.source.height,
+                                )?.let { onPaint(it.first, it.second) }
                             },
                             // The mask is painted at every point of the drag, not only where
                             // the events land. Android delivers touch at about 120Hz and a fast
@@ -127,25 +140,36 @@ fun CutScreen(
                             // which draws a dotted line instead of a stroke.
                             onDrag = { change, _ ->
                                 change.consume()
-                                toPixelF(change.position, drawn, refine.source)
-                                    ?.let { onPaint(it.x, it.y) }
+                                Fit.toSource(
+                                    frame,
+                                    change.position.x,
+                                    change.position.y,
+                                    refine.source.width,
+                                    refine.source.height,
+                                )?.let { onPaint(it.first, it.second) }
                             },
                         )
                     },
             ) {
+                if (frame.width <= 0f) return@Canvas
                 drawImage(
                     image = preview,
-                    dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                    dstOffset = IntOffset.Zero,
+                    dstOffset = IntOffset(frame.x.roundToInt(), frame.y.roundToInt()),
+                    dstSize = IntSize(frame.width.roundToInt(), frame.height.roundToInt()),
                 )
                 if (refine.tool == Tool.Brush) {
-                    // The brush size, shown where it can be judged: over the picture, at the
-                    // scale it will actually paint at.
-                    val k = size.width / refine.source.width
+                    // The brush is measured in source pixels, because it paints the mask. Drawn
+                    // at the fit scale so the ring is the size the brush will actually be — it
+                    // used to divide by the canvas width, which was only right when the canvas
+                    // and the picture were the same thing.
+                    val k = Fit.sourceToBox(frame, refine.source.width)
                     drawCircle(
                         color = colors.content,
                         radius = refine.brush * k,
-                        center = Offset(size.width / 2f, size.height / 2f),
+                        center = Offset(
+                            frame.x + frame.width / 2f,
+                            frame.y + frame.height / 2f,
+                        ),
                         style = Stroke(width = 2f),
                         alpha = 0.35f,
                     )
@@ -234,30 +258,7 @@ private fun Stepper(
     }
 }
 
-/**
- * Where on the image a touch landed, or null if it landed outside it.
- *
- * The canvas is laid out with the image's aspect ratio, so the mapping is a single scale
- * factor — but it is read from the measured size rather than computed from the source, because
- * the width is whatever the column gave it and rounding at two different places produces a
- * wand that is reliably a pixel or two off near the right-hand edge.
- */
-private fun toPixel(at: Offset, drawn: IntSize, source: Bitmap): IntPoint? {
-    val f = toPixelF(at, drawn, source) ?: return null
-    return IntPoint(f.x.roundToInt().coerceIn(0, source.width - 1), f.y.roundToInt().coerceIn(0, source.height - 1))
-}
 
-private fun toPixelF(at: Offset, drawn: IntSize, source: Bitmap): Offset? {
-    if (drawn.width <= 0 || drawn.height <= 0) return null
-    val kx = source.width.toFloat() / drawn.width
-    val ky = source.height.toFloat() / drawn.height
-    val x = at.x * kx
-    val y = at.y * ky
-    if (x < 0 || y < 0 || x >= source.width || y >= source.height) return null
-    return Offset(x, y)
-}
-
-private data class IntPoint(val x: Int, val y: Int)
 
 /**
  * The photograph with everything outside the mask knocked back, for the preview only.

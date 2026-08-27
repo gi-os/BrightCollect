@@ -1,35 +1,27 @@
-## v1.1 — a tray, a guess, and stickers that stay stickers
+## v1.2 — the whole photo, four across, and a name you can just type
 
-**The shelf is a tray now.** A grid says every cell is the same and the contents are
-interchangeable, which is the opposite of what a collection claims. Each sticker takes its own
-trimmed bounding box, normalised by area rather than width so a pencil and a plate each read as
-one object, and the boxes are packed by a skyline so they interlock instead of sitting in rows.
-Each leans a few degrees, seeded from its own id so the tray survives scrolling and restarts
-rather than reshuffling every time it is drawn.
+**The cut screen was hiding part of the photograph.** The canvas derived its height from its
+width, which is fine until the box is not that tall — so a portrait photo overflowed and lost
+its top and bottom. The part you could not see was also the part you could not paint on, and
+the wand was aiming through the same wrong assumption.
 
-Something genuinely long — a pencil, a belt — spans the tray. The first version had a long-edge
-cap and a short-edge floor fighting each other, and the cap always won, so anything past about
-3:1 came out as a four-pixel hairline. The floor goes first now and the cap is allowed to
-decline; only the tray's width is absolute.
+The picture is fitted inside the screen now, letterboxed, at any shape. Taps map through the
+same rectangle the picture is drawn in, so what you touch is what you hit. A tap in the margin
+beside the photo does nothing, rather than landing on the outermost row of pixels — which is
+background, so one stray tap used to take the entire background and read as a miss.
 
-**A name to start from.** A bundled labeller runs on the finished cutout and prefills the name,
-with the whole field selected so the first keystroke replaces it. It labels the cutout rather
-than the photograph, which is most of why it works: the background is already gone, so the
-table and the wall are not there to be named instead. Below 55% confidence it says nothing and
-you get the numbered default.
+The brush preview ring was also sized against the canvas rather than the picture, so it lied
+about the brush by whatever the fit happened to be. Fixed with the same rectangle.
 
-**Stickers stop pretending to be photographs.** They used to be published into MediaStore as
-flattened JPEGs on white so BrightNotebook's calendar would find them. That worked and was
-visibly wrong — the notebook drew them in the photo strip on a white card, and Roll's grid
-filled up with white-background duplicates of things already in the collection.
+**Four across instead of three.** The tray was leaving a lot of screen empty. Density is one
+number now, expressed as a fraction of the tray's width so it holds on any screen, and the gap
+and the minimum sticker size came down with it. The tray is 77% full where it was 72%, and
+roughly half as tall for the same collection.
 
-There is a provider instead, in the shape LightFog, LightChat, BrightRecorder, BrightWay and
-LightBooks already use with the notebook: asked by date, no permission on either side, and it
-serves the real PNG with its alpha. **Update BrightNotebook too** — v2.x draws the day's catches
-as a little tray of cutouts, no card and no frame, and tapping one opens it back here.
+**Tapping a suggested name empties it.** It used to open with the whole name selected so your
+first keystroke would replace it — true right up until you tapped the field, because a tap
+places the caret and drops the selection. So the one gesture that means "I want to change this"
+was the gesture that threw the shortcut away. Now it clears on the first tap, only while the
+name is still a guess, and leaving it empty keeps the name it had.
 
-Stickers already published into MediaStore by v1.0 are left alone. Delete the
-`Pictures/Collect` album if you want them gone.
-
-**Size:** the APK is 47 MB, up from 34. The labeller's model is 2.9 MB of that; the rest is ML
-Kit's own inference runtime sitting beside the one the cutout already uses.
+Names you typed yourself are untouched: tapping one puts the caret where you tapped.

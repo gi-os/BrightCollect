@@ -106,9 +106,14 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
 
-    // The wheel, the LPIII key map and the LightSync backup provider, shared with every other
-    // Bright* app rather than pasted into each of them.
-    implementation("com.gios:light-common:1.5.0")
+    // The wheel, the LPIII key map, shake-to-report and the LightSync backup provider, shared
+    // with every other Bright* app rather than pasted into each of them.
+    //
+    // 1.4.1 and not 1.5.0: v1.5.0 is tagged in BrightCommon but was never published to GitHub
+    // Packages, so it resolves to "Could not find com.gios:light-common:1.5.0" — which reads
+    // exactly like a credentials problem and is not one. `maven-metadata.xml` on the package
+    // repository is the list that matters, not the repository's tags.
+    implementation("com.gios:light-common:1.4.1")
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")

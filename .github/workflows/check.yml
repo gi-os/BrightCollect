@@ -49,7 +49,10 @@ jobs:
       # a question to first ask there.
       - name: Verify the release package
         run: |
-          APK=app/build/outputs/apk/release/app-release.apk
+          # Globbed, not spelled out. A release with no keystore secret is named
+          # app-release-unsigned.apk, and a hard-coded path silently checks nothing.
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          echo "checking $APK"
           SIZE=$(unzip -p "$APK" assets/u2netp.onnx | wc -c)
           echo "assets/u2netp.onnx = $SIZE bytes"
           [ "$SIZE" -gt 4000000 ] || { echo '::error::u2netp.onnx missing or truncated'; exit 1; }

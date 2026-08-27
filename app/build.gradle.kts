@@ -51,6 +51,11 @@ android {
     // A build without the secret still works and still produces an installable APK — signed
     // with the local debug key instead, and it will not update over a release. A build that
     // announces it is not the real one beats one that silently signs itself with a shared key.
+    //
+    // The fallback has to be the debug config and not `null`. `signingConfig = null` produces
+    // an *unsigned* release, which Android will not install at all, and AGP names it
+    // `app-release-unsigned.apk` — so every path and glob written for `app-release.apk`
+    // quietly refers to a file that is not there.
     val keystoreFile = rootProject.file("keystore/brightcollect.jks")
     val keystorePassword: String = System.getenv("KEYSTORE_PASSWORD") ?: ""
     val canSignRelease = keystoreFile.exists() && keystorePassword.isNotEmpty()
@@ -71,7 +76,11 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = if (canSignRelease) signingConfigs.getByName("release") else null
+            signingConfig = if (canSignRelease) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 

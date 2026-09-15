@@ -1,5 +1,7 @@
 # BrightCollect
 
+[**⬇ Download the latest APK**](https://github.com/gi-os/BrightCollect/releases/latest) · free, open source.
+
 **Photograph a thing. Keep the thing, not the photograph.**
 
 A collector for the Light Phone III. Point it at an object, press the shutter, and the object

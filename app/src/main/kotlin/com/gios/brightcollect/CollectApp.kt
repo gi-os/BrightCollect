@@ -22,7 +22,8 @@ class CollectApp : Application() {
             label = "collect",
             // Empty in a build with no secret. Reports queue on the phone and go out from a
             // later build that has the key, so this is not a failure worth handling.
-            token = BuildConfig.REPORT_TOKEN,
+            // No key on the phone: reports queue until light-common 1.11.0, which posts them to the report relay.
+            token = "",
             repo = BuildConfig.REPORT_REPO,
         )
     }

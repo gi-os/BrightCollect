@@ -1,24 +1,7 @@
-import java.util.Properties
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-}
-
-/**
- * The key shake-to-report posts issues with. Never in the repository: `local.properties` is
- * ignored by git, and CI hands it in from a repository secret. An empty string is a working
- * build — reports queue on the phone and go out from a later one that has the key.
- */
-val reportToken: String = run {
-    val local = rootProject.file("local.properties")
-    val fromFile = if (local.exists()) {
-        Properties().apply { local.inputStream().use { load(it) } }.getProperty("reportToken")
-    } else {
-        null
-    }
-    fromFile ?: System.getenv("REPORT_TOKEN") ?: ""
 }
 
 android {
@@ -41,7 +24,6 @@ android {
         versionCode = 1
         versionName = "1.4.0"
 
-        buildConfigField("String", "REPORT_TOKEN", "\"$reportToken\"")
         buildConfigField("String", "REPORT_REPO", "\"gi-os/light-reports\"")
 
         // The LPIII is arm64 only. It matters more here than in the other apps: ONNX Runtime
@@ -123,10 +105,10 @@ dependencies {
     // with every other Bright* app rather than pasted into each of them.
     //
     // 1.4.1 and not 1.5.0: v1.5.0 is tagged in BrightCommon but was never published to GitHub
-    // Packages, so it resolves to "Could not find com.gios:light-common:1.5.0" — which reads
+    // Packages, so it resolves to "Could not find com.gios:light-common:1.11.0" — which reads
     // exactly like a credentials problem and is not one. `maven-metadata.xml` on the package
     // repository is the list that matters, not the repository's tags.
-    implementation("com.gios:light-common:1.4.1")
+    implementation("com.gios:light-common:1.11.0")
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")

@@ -105,10 +105,10 @@ dependencies {
     // with every other Bright* app rather than pasted into each of them.
     //
     // 1.4.1 and not 1.5.0: v1.5.0 is tagged in BrightCommon but was never published to GitHub
-    // Packages, so it resolves to "Could not find com.gios:light-common:1.5.0" — which reads
+    // Packages, so it resolves to "Could not find com.gios:light-common:1.11.0" — which reads
     // exactly like a credentials problem and is not one. `maven-metadata.xml` on the package
     // repository is the list that matters, not the repository's tags.
-    implementation("com.gios:light-common:1.4.1")
+    implementation("com.gios:light-common:1.11.0")
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
